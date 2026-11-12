@@ -21,41 +21,31 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Find Android project
-        id: android
+      
+      - name: Find Android APK
+        id: findapk
         shell: bash
         run: |
-          PROJECT_DIR=""
+          echo "Recherche du fichier APK..."
 
-          while IFS= read -r file; do
-            dir=$(dirname "$file")
-            if [ -f "$dir/app/build.gradle" ] || [ -f "$dir/app/build.gradle.kts" ]; then
-              PROJECT_DIR="$dir"
-              break
-            fi
-          done < <(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.gradle/*')
+          APK=$(find . -type f -name "*.apk" \
+            -not -path "*/.gradle/*" \
+            -print -quit)
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERREUR : Projet Android introuvable."
-            echo "Vérifie la présence de settings.gradle et app/build.gradle."
-            find . -maxdepth 4 -type f | head -200
+          if [ -z "$APK" ]; then
+            echo "ERREUR : Aucun APK trouvé."
+            echo "Contenu des dossiers de compilation :"
+            find . -type d -path "*/build/outputs/*"
             exit 1
           fi
 
-          echo "Projet trouvé : $PROJECT_DIR"
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "APK trouvé : $APK"
+          cp "$APK" IPFinder-debug.apk
 
-      - name: Build Debug APK
-        working-directory: .
-        run: |
-          cd "${{ steps.android.outputs.project_dir }}"
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
-
-      - name: Upload APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: IPFinder-APK
-          path: "**/build/outputs/apk/debug/*.apk"
+          name: IPFinder-Debug-APK
+          path: IPFinder-debug.apk
           if-no-files-found: error
           
