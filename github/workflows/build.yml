@@ -21,24 +21,40 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Find Android project
+      - name: Extract IPFinder ZIP
+        shell: bash
+        run: |
+          ZIP=$(find . -type f -iname "IPFinder-Android-corrige.zip" -print -quit)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERREUR : IPFinder-Android-corrige.zip introuvable"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
+
+          mkdir -p extracted
+          unzip -q "$ZIP" -d extracted
+
+          echo "ZIP extrait avec succès"
+
+      - name: Find Android Project
         id: android
         shell: bash
         run: |
           PROJECT_DIR=""
 
           while IFS= read -r file; do
-            dir=$(dirname "$file")
-            if [ -f "$dir/app/build.gradle" ] || [ -f "$dir/app/build.gradle.kts" ]; then
-              PROJECT_DIR="$dir"
+            DIR=$(dirname "$file")
+
+            if [ -f "$DIR/app/build.gradle" ] || [ -f "$DIR/app/build.gradle.kts" ]; then
+              PROJECT_DIR="$DIR"
               break
             fi
-          done < <(find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) -not -path '*/.gradle/*')
+          done < <(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \))
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "ERREUR : Projet Android introuvable."
-            echo "Vérifie la présence de settings.gradle et app/build.gradle."
-            find . -maxdepth 4 -type f | head -200
+            echo "ERREUR : Projet Android introuvable dans le ZIP"
+            find extracted -maxdepth 5 -type f | head -200
             exit 1
           fi
 
@@ -46,16 +62,33 @@ jobs:
           echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build Debug APK
-        working-directory: .
+        shell: bash
         run: |
           cd "${{ steps.android.outputs.project_dir }}"
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon
+          else
+            echo "Gradle wrapper introuvable"
+            exit 1
+          fi
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          APK=$(find extracted -type f -path "*/build/outputs/apk/debug/*.apk" -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "APK introuvable"
+            exit 1
+          fi
+
+          cp "$APK" IPFinder-debug.apk
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: IPFinder-APK
-          path: "**/build/outputs/apk/debug/*.apk"
-          if-no-files-found: error
+          name: IPFinder-Debug-APK
+          path: IPFinder-debug.apk
           
