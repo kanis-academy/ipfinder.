@@ -74,16 +74,25 @@ jobs:
             exit 1
           fi
 
-      - name: Prepare APK
+      
+      - name: Find Android APK
+        id: findapk
         shell: bash
         run: |
-          APK=$(find extracted -type f -path "*/build/outputs/apk/debug/*.apk" -print -quit)
+          echo "Recherche du fichier APK..."
+
+          APK=$(find . -type f -name "*.apk" \
+            -not -path "*/.gradle/*" \
+            -print -quit)
 
           if [ -z "$APK" ]; then
-            echo "APK introuvable"
+            echo "ERREUR : Aucun APK trouvé."
+            echo "Contenu des dossiers de compilation :"
+            find . -type d -path "*/build/outputs/*"
             exit 1
           fi
 
+          echo "APK trouvé : $APK"
           cp "$APK" IPFinder-debug.apk
 
       - name: Upload Debug APK
@@ -91,4 +100,5 @@ jobs:
         with:
           name: IPFinder-Debug-APK
           path: IPFinder-debug.apk
+          if-no-files-found: error
           
